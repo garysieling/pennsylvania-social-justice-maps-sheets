@@ -10,7 +10,9 @@
     <!--Add buttons to initiate auth sequence and sign out-->
     <button id="authorize_button" onclick="handleAuthClick()">Authorize</button>
     <button id="signout_button" onclick="handleSignoutClick()">Sign Out</button>
-    <input type="text" id = "sheet_id" value="" />
+    Sheet ID: <input type="text" id="sheet_id" value="" /> <br />
+    API Key: <input type="text" id="api_key" value="" /> <br /> 
+    Client ID: <input type="text" id="client_id" value="" /> <br />
 
     <pre id="content" style="white-space: pre-wrap;"></pre>
 
@@ -19,9 +21,6 @@
       /* exported gisLoaded */
       /* exported handleAuthClick */
       /* exported handleSignoutClick */
-
-      const CLIENT_ID = '';
-      const API_KEY = '';
 
       // Discovery doc URL for APIs used by the quickstart
       const DISCOVERY_DOC = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
@@ -50,7 +49,7 @@
        */
       async function initializeGapiClient() {
         await gapi.client.init({
-          apiKey: API_KEY,
+          apiKey: getApiKey(),
           discoveryDocs: [DISCOVERY_DOC],
         });
         gapiInited = true;
@@ -119,6 +118,14 @@
         }
       }
 
+      function getClientId() {
+        return document.getElementById('client_id').value;
+      }
+      
+      function getApiKey() {
+        return document.getElementById('api_key').value;
+      }
+      
       /**
        * Print the names and majors of students in a sample spreadsheet:
        * https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit
