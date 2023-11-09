@@ -7,46 +7,40 @@
   <body>
     <p>Sheets API Quickstart</p>
 
-    <!--Add buttons to initiate auth sequence and sign out-->
-    <button id="authorize_button" onclick="handleAuthClick()">Authorize</button>
-    <button id="signout_button" onclick="handleSignoutClick()">Sign Out</button>
-    Sheet ID: <input type="text" id="sheet_id" value="" /> <br />
+    <button type="button" id="authorize_button" onclick="handleAuthClick()">Authorize</button> <br />
+    <button type="button" id="signout_button" onclick="handleSignoutClick()">Sign Out</button> <br />
     API Key: <input type="text" id="api_key" value="" /> <br /> 
-    Client ID: <input type="text" id="client_id" value="" /> <br />
+    Client ID: <input type="text" id="client_id" value="1062787699601-f9hqmcdf3s5fjbvd4fln1n1pq2o4ffrv.apps.googleusercontent.com" /> <br />
+    Sheet: <input type="text" id="sheet" value="School Districts" /> <br />
+    Range: <input type="text" id="range" value="A1:E" /> <br />
 
     <pre id="content" style="white-space: pre-wrap;"></pre>
 
     <script type="text/javascript">
-      /* exported gapiLoaded */
-      /* exported gisLoaded */
-      /* exported handleAuthClick */
-      /* exported handleSignoutClick */
-
-      // Discovery doc URL for APIs used by the quickstart
       const DISCOVERY_DOC = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
 
       // Authorization scopes required by the API; multiple scopes can be
       // included, separated by spaces.
-      const SCOPES = 'https://www.googleapis.com/auth/spreadsheets.readonly';
+      const SCOPES = 'https://www.googleapis.com/auth/spreadsheets.readonly ' +
+        'https://www.googleapis.com/auth/drive.metadata.readonly';
 
       let tokenClient;
       let gapiInited = false;
       let gisInited = false;
-
+      let pickerInited = false;
+      
       document.getElementById('authorize_button').style.visibility = 'hidden';
       document.getElementById('signout_button').style.visibility = 'hidden';
-
-      /**
-       * Callback after api.js is loaded.
-       */
+      
       function gapiLoaded() {
         gapi.load('client', initializeGapiClient);
+        gapi.load('picker', onPickerApiLoad);
       }
 
-      /**
-       * Callback after the API client is loaded. Loads the
-       * discovery doc to initialize the API.
-       */
+      function onPickerApiLoad() {
+        pickerInited = true;
+      }
+
       async function initializeGapiClient() {
         await gapi.client.init({
           apiKey: getApiKey(),
@@ -56,57 +50,58 @@
         maybeEnableButtons();
       }
 
-      /**
-       * Callback after Google Identity Services are loaded.
-       */
       function gisLoaded() {
         tokenClient = google.accounts.oauth2.initTokenClient({
-          client_id: CLIENT_ID,
+          client_id: getClientId(),
           scope: SCOPES,
-          callback: '', // defined later
+          callback: ''
         });
         gisInited = true;
+        pickerInited = true;
         maybeEnableButtons();
       }
 
-      /**
-       * Enables user interaction after all libraries are loaded.
-       */
       function maybeEnableButtons() {
         if (gapiInited && gisInited) {
           document.getElementById('authorize_button').style.visibility = 'visible';
         }
       }
 
-      /**
-       *  Sign in the user upon button click.
-       */
+      function pickerCallback(data) {
+        let url = 'nothing';
+        if (data[google.picker.Response.ACTION] == google.picker.Action.PICKED) {            
+          let doc = data[google.picker.Response.DOCUMENTS][0];
+          
+          listData(doc.id);
+        }
+      }
+
       function handleAuthClick() {
-        tokenClient.callback = async (resp) => {
-          if (resp.error !== undefined) {
-            throw (resp);
+        tokenClient.callback = async (response) => {
+          if (response.error !== undefined) {
+            throw (response);
           }
           document.getElementById('signout_button').style.visibility = 'visible';
           document.getElementById('authorize_button').innerText = 'Refresh';
-          const sheetId = document.getElementById('sheet_id').value;
-          if (!!sheetId) {
-            await listData(sheetId);
-          }
+          
+          accessToken = response.access_token;
+          const picker = new google.picker.PickerBuilder()
+                .enableFeature(google.picker.Feature.NAV_HIDDEN)
+                .addView(google.picker.ViewId.SPREADSHEETS)
+                .setOAuthToken(accessToken)
+                .setDeveloperKey(getApiKey())
+                .setCallback(pickerCallback)
+                .build();
+          picker.setVisible(true);
         };
 
         if (gapi.client.getToken() === null) {
-          // Prompt the user to select a Google Account and ask for consent to share their data
-          // when establishing a new session.
           tokenClient.requestAccessToken({prompt: 'consent'});
         } else {
-          // Skip display of account chooser and consent dialog for an existing session.
           tokenClient.requestAccessToken({prompt: ''});
         }
       }
 
-      /**
-       *  Sign out the user upon button click.
-       */
       function handleSignoutClick() {
         const token = gapi.client.getToken();
         if (token !== null) {
@@ -126,17 +121,17 @@
         return document.getElementById('api_key').value;
       }
       
-      /**
-       * Print the names and majors of students in a sample spreadsheet:
-       * https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit
-       */
+      function getRange() {
+        return document.getElementById('sheet').value + '!' +
+          document.getElementById('range').value;
+      }
+
       async function listData(sheetId) {
         let response;
         try {
-          // Fetch first 10 files
           response = await gapi.client.sheets.spreadsheets.values.get({
             spreadsheetId: sheetId,
-            range: 'School Districts!A1:E',
+            range: getRange(),
           });
         } catch (err) {
           document.getElementById('content').innerText = err.message;
@@ -147,10 +142,9 @@
           document.getElementById('content').innerText = 'No values found.';
           return;
         }
-        // Flatten to string to display
-        const output = range.values.reduce(
-            (str, row) => `${str}${row[0]}, ${row[4]}\n`,
-            'Name, Major:\n');
+        
+        const output = JSON.stringify(range, null, 2);
+        
         document.getElementById('content').innerText = output;
       }
     </script>
@@ -158,4 +152,3 @@
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
   </body>
 </html>
-<!-- [END sheets_quickstart] -->
