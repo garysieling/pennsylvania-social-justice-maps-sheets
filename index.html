@@ -24,164 +24,187 @@
       const SCOPES = 'https://www.googleapis.com/auth/spreadsheets.readonly ' +
         'https://www.googleapis.com/auth/drive.metadata.readonly';
 
-      let tokenClient;
-      let gapiInited = false;
-      let gisInited = false;
-      let pickerInited = false;
-      
-      document.getElementById('authorize_button').style.visibility = 'hidden';
-      document.getElementById('signout_button').style.visibility = 'hidden';
-      
-      function gapiLoaded() {
-        gapi.load('client', initializeGapiClient);
-        gapi.load('picker', onPickerApiLoad);
+        var accessToken;
+      function setAccessToken(value) {
+        localStorage.setItem("sheets_access_token", value);
       }
 
-      function onPickerApiLoad() {
-        pickerInited = true;
+      function getAccessToken() {
+        return localStorage.getItem("sheets_access_token");
       }
 
-      async function initializeGapiClient() {
-        await gapi.client.init({
-          apiKey: getApiKey(),
-          discoveryDocs: [DISCOVERY_DOC],
-        });
-        gapiInited = true;
-        maybeEnableButtons();
-      }
+        let tokenClient;
+        let gapiInited = false;
+        let gisInited = false;
+        let pickerInited = false;
+        let hasAccessToken = !!getAccessToken();
 
-      function gisLoaded() {
-        tokenClient = google.accounts.oauth2.initTokenClient({
-          client_id: getClientId(),
-          scope: SCOPES,
-          callback: ''
-        });
-        gisInited = true;
-        pickerInited = true;
-        maybeEnableButtons();
-      }
+        document.getElementById('authorize_button').style.visibility = 'hidden';
+        document.getElementById('signout_button').style.visibility = 'hidden';
 
-      function maybeEnableButtons() {
-        if (gapiInited && gisInited) {
-          document.getElementById('authorize_button').style.visibility = 'visible';
+        function gapiLoaded() {
+          gapi.load('client', initializeGapiClient);
+          gapi.load('picker', onPickerApiLoad);
         }
-      }
 
-      function pickerCallback(data) {
-        let url = 'nothing';
-        if (data[google.picker.Response.ACTION] == google.picker.Action.PICKED) {            
-          let doc = data[google.picker.Response.DOCUMENTS][0];
-          
-          listSheets(doc.id);
+        function onPickerApiLoad() {
+          pickerInited = true;
         }
-      }
 
-      function handleAuthClick() {
-        tokenClient.callback = async (response) => {
-          if (response.error !== undefined) {
-            throw (response);
+        async function initializeGapiClient() {
+          await gapi.client.init({
+            apiKey: getApiKey(),
+            discoveryDocs: [DISCOVERY_DOC],
+          });
+          gapiInited = true;
+          maybeAllApisLoaded();
+        }
+
+        function gisLoaded() {
+          tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: getClientId(),
+            scope: SCOPES,
+            callback: ''
+          });
+          gisInited = true;
+          pickerInited = true;
+          maybeAllApisLoaded();
+        }
+
+      function maybeAllApisLoaded() {
+          if (gapiInited && gisInited) {
+            if (!hasAccessToken) {
+              document.getElementById('authorize_button').style.visibility = 'visible';
+            } else {
+              onReady();
+            }
           }
+        }
+
+        function pickerCallback(data) {
+          let url = 'nothing';
+          if (data[google.picker.Response.ACTION] == google.picker.Action.PICKED) {            
+            let doc = data[google.picker.Response.DOCUMENTS][0];
+            
+            gapi.client.setToken({access_token: getAccessToken()});
+
+            listSheets(doc.id);
+          }
+        }
+
+        function handleAuthClick() {
+          tokenClient.callback = async (response) => {
+            if (response.error !== undefined) {
+              throw (response);
+            }
+            
+            setAccessToken(response.access_token);
+
+            onReady();
+          };
+
+          if (gapi.client.getToken() === null) {
+            tokenClient.requestAccessToken({prompt: 'consent'});
+          } else {
+            tokenClient.requestAccessToken({prompt: ''});
+          }
+        }
+
+        function onReady() {
           document.getElementById('signout_button').style.visibility = 'visible';
           document.getElementById('authorize_button').innerText = 'Refresh';
-          
-          accessToken = response.access_token;
+
           const picker = new google.picker.PickerBuilder()
-                .enableFeature(google.picker.Feature.NAV_HIDDEN)
-                .addView(google.picker.ViewId.SPREADSHEETS)
-                .setOAuthToken(accessToken)
-                .setDeveloperKey(getApiKey())
-                .setCallback(pickerCallback)
-                .build();
-          picker.setVisible(true);
-        };
-
-        if (gapi.client.getToken() === null) {
-          tokenClient.requestAccessToken({prompt: 'consent'});
-        } else {
-          tokenClient.requestAccessToken({prompt: ''});
+                  .enableFeature(google.picker.Feature.NAV_HIDDEN)
+                  .addView(google.picker.ViewId.SPREADSHEETS)
+                  .setOAuthToken(getAccessToken())
+                  .setDeveloperKey(getApiKey())
+                  .setCallback(pickerCallback)
+                  .build();
+            picker.setVisible(true);
         }
-      }
 
-      function handleSignoutClick() {
-        const token = gapi.client.getToken();
-        if (token !== null) {
-          google.accounts.oauth2.revoke(token.access_token);
-          gapi.client.setToken('');
-          document.getElementById('content').innerText = '';
-          document.getElementById('authorize_button').innerText = 'Authorize';
-          document.getElementById('signout_button').style.visibility = 'hidden';
+        function handleSignoutClick() {
+          const token = gapi.client.getToken();
+          if (token !== null) {
+            google.accounts.oauth2.revoke(getAccessToken());
+            setAccessToken('');
+            gapi.client.setToken('');
+            document.getElementById('content').innerText = '';
+            document.getElementById('authorize_button').innerText = 'Authorize';
+            document.getElementById('signout_button').style.visibility = 'hidden';
+          }
         }
-      }
 
-      function getClientId() {
-        return document.getElementById('client_id').value;
-      }
-      
-      function getApiKey() {
-        return document.getElementById('api_key').value;
-      }
-      
-      function getRange() {
-        return document.getElementById('sheet').value + '!' +
-          document.getElementById('range').value;
-      }
-      
-      function removeOptions(selectElement) {
-        let i, L = selectElement.options.length - 1;
-        for(i = L; i >= 0; i--) {
-            selectElement.remove(i);
+        function getClientId() {
+          return document.getElementById('client_id').value;
         }
-      }
+        
+        function getApiKey() {
+          return document.getElementById('api_key').value;
+        }
+        
+        function getRange() {
+          return document.getElementById('sheet').value + '!' +
+            document.getElementById('range').value;
+        }
+        
+        function removeOptions(selectElement) {
+          let i, L = selectElement.options.length - 1;
+          for(i = L; i >= 0; i--) {
+              selectElement.remove(i);
+          }
+        }
 
-      async function listSheets(sheetId) {
-        let response;
-        try {
-          response = await gapi.client.sheets.spreadsheets.get({
-            spreadsheetId: sheetId
-          });
+        async function listSheets(sheetId) {
+          let response;
+          try {
+            response = await gapi.client.sheets.spreadsheets.get({
+              spreadsheetId: sheetId
+            });
+            
+            window.sheetResponse = response;
+
+            const sheetSelector = document.getElementById("sheet_name");
+            removeOptions(sheetSelector);
+
+            document.getElementById('sheet_name').options =
+              response.result.sheets.map(
+                (sheet) => {
+                  sheetSelector.options[sheetSelector.options.length] = 
+                    new Option(sheet.properties.title, sheet.properties.title);
+                });
+          } catch (err) {
+            document.getElementById('content').innerText = err.message;
+            return;
+          }
           
-          window.sheetResponse = response;
-
-          const sheetSelector = document.getElementById("sheet_name");
-          removeOptions(sheetSelector);
-
-          document.getElementById('sheet_name').options =
-            response.result.sheets.map(
-              (sheet) => {
-                sheetSelector.options[sheetSelector.options.length] = 
-                  new Option(sheet.properties.title, sheet.properties.title);
-              });
-        } catch (err) {
-          document.getElementById('content').innerText = err.message;
-          return;
+          //document.getElementById('content').innerText = output;
         }
-        
-        //document.getElementById('content').innerText = output;
-      }
 
-      async function listData(sheetId) {
-        let response;
-        try {
-          response = await gapi.client.sheets.spreadsheets.values.get({
-            spreadsheetId: sheetId,
-            range: getRange(),
-          });
+        async function listData(sheetId) {
+          let response;
+          try {
+            response = await gapi.client.sheets.spreadsheets.values.get({
+              spreadsheetId: sheetId,
+              range: getRange(),
+            });
+            
+            window.listDataResponse = response;
+          } catch (err) {
+            document.getElementById('content').innerText = err.message;
+            return;
+          }
+          const range = response.result;
+          if (!range || !range.values || range.values.length == 0) {
+            document.getElementById('content').innerText = 'No values found.';
+            return;
+          }
           
-          window.listDataResponse = response;
-        } catch (err) {
-          document.getElementById('content').innerText = err.message;
-          return;
+          const output = JSON.stringify(range, null, 2);
+          
+          document.getElementById('content').innerText = output;
         }
-        const range = response.result;
-        if (!range || !range.values || range.values.length == 0) {
-          document.getElementById('content').innerText = 'No values found.';
-          return;
-        }
-        
-        const output = JSON.stringify(range, null, 2);
-        
-        document.getElementById('content').innerText = output;
-      }
     </script>
     <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
