@@ -11,8 +11,9 @@
     <button type="button" id="signout_button" onclick="handleSignoutClick()">Sign Out</button> <br />
     API Key: <input type="text" id="api_key" value="" /> <br /> 
     Client ID: <input type="text" id="client_id" value="1062787699601-f9hqmcdf3s5fjbvd4fln1n1pq2o4ffrv.apps.googleusercontent.com" /> <br />
-    Sheet: <select type="text" id="sheet_name" value=""></select> <br />
-    Range: <input type="text" id="range" value="A1:E" /> <br />
+    Sheet: <select type="text" id="sheet_name" value="" onchange="selectSheet()"></select> <br />
+    Columns: <select type="text" id="sheet_column1" value=""></select> <br />
+    Columns: <select type="text" id="sheet_column2" value=""></select> <br />
 
     <pre id="content" style="white-space: pre-wrap;"></pre>
 
@@ -38,6 +39,7 @@
         let gisInited = false;
         let pickerInited = false;
         let hasAccessToken = !!getAccessToken();
+        let sheetId = null;
 
         document.getElementById('authorize_button').style.visibility = 'hidden';
         document.getElementById('signout_button').style.visibility = 'hidden';
@@ -88,7 +90,8 @@
             
             gapi.client.setToken({access_token: getAccessToken()});
 
-            listSheets(doc.id);
+            sheetId = doc.id;
+            listSheets();
           }
         }
 
@@ -156,7 +159,21 @@
           }
         }
 
-        async function listSheets(sheetId) {
+        function toSelect(name, data, cb) {
+          const select = document.getElementById(name);
+          removeOptions(select);
+
+          select.options[select.options.length] = new Option('', '');
+
+          select.options =
+              data.map(
+                (record) => {
+                  select.options[select.options.length] = 
+                    new Option(cb(record), cb(record));
+                });
+        }
+
+        async function listSheets() {
           let response;
           try {
             response = await gapi.client.sheets.spreadsheets.get({
@@ -165,15 +182,13 @@
             
             window.sheetResponse = response;
 
-            const sheetSelector = document.getElementById("sheet_name");
-            removeOptions(sheetSelector);
+            toSelect(
+              'sheet_name',
+              response.result.sheets,
+              (sheet) => sheet.properties.title
+            );
 
-            document.getElementById('sheet_name').options =
-              response.result.sheets.map(
-                (sheet) => {
-                  sheetSelector.options[sheetSelector.options.length] = 
-                    new Option(sheet.properties.title, sheet.properties.title);
-                });
+            
           } catch (err) {
             document.getElementById('content').innerText = err.message;
             return;
@@ -182,12 +197,36 @@
           //document.getElementById('content').innerText = output;
         }
 
-        async function listData(sheetId) {
+        async function selectSheet(e) {
+          let sheetName = document.getElementById('sheet_name').value;
+         
+          if (!sheetName) {
+            return;
+          }
+
+          let cols = await listData(sheetId, sheetName + "!A1:ZZ1");
+          console.log(cols);
+          
+          toSelect(
+              'sheet_column1',
+              cols.values[0],
+              (name) => name
+            );
+
+            
+          toSelect(
+              'sheet_column2',
+              cols.values[0],
+              (name) => name
+            );
+        }
+
+        async function listData(sheetId, range) {
           let response;
           try {
             response = await gapi.client.sheets.spreadsheets.values.get({
               spreadsheetId: sheetId,
-              range: getRange(),
+              range: range
             });
             
             window.listDataResponse = response;
@@ -195,15 +234,8 @@
             document.getElementById('content').innerText = err.message;
             return;
           }
-          const range = response.result;
-          if (!range || !range.values || range.values.length == 0) {
-            document.getElementById('content').innerText = 'No values found.';
-            return;
-          }
           
-          const output = JSON.stringify(range, null, 2);
-          
-          document.getElementById('content').innerText = output;
+          return response.result;
         }
     </script>
     <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
