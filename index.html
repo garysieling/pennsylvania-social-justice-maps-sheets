@@ -12,8 +12,8 @@
     API Key: <input type="text" id="api_key" value="" /> <br /> 
     Client ID: <input type="text" id="client_id" value="1062787699601-f9hqmcdf3s5fjbvd4fln1n1pq2o4ffrv.apps.googleusercontent.com" /> <br />
     Sheet: <select type="text" id="sheet_name" value="" onchange="selectSheet()"></select> <br />
-    Columns: <select type="text" id="sheet_column1" value="" onchange="selectColumn()"></select> <br />
-    Columns: <select type="text" id="sheet_column2" value=""></select> <br />
+    Keys: <select type="text" id="sheet_column2" value="" multiple="multiple"></select> <br />
+    Plot: <select type="text" id="sheet_column1" value="" onchange="selectColumn()"></select> <br />
 
     <pre id="content" style="white-space: pre-wrap;"></pre>
 
@@ -291,7 +291,68 @@
           return response.result;
         }
     </script>
+
+    <div id="root"></div>
+
     <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+    <script crossorigin src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+
+    <script type="text/babel">
+      const types = [
+        "",
+        "County",
+        "Town",
+        "School District",
+        "House District",
+        "Senate District",
+        "Zip",
+        "Magesterial Court",
+        "Police"
+      ];
+
+      const keys = {
+        "County": "County Name",
+        "Municipality": "County Name AND Municipality Name",
+        "School District": "County Name",
+        "House District": "District Number OR Legislator Name",
+        "Senate District": "District Number OR Legislator Name",
+        "Zip": "Zip Code",
+        "Magesterial Court": "Court Number OR Judge Name",
+        "Police": "Police Precinct OR Police Chief Name"
+      }
+
+      class App extends React.Component {
+          App() {
+            this.state = {
+              selectedType: ''
+            };
+          }
+
+          render() {
+            console.log(this.state);
+              const selectedTypeKeys = null;
+              return (
+                <div>
+                  <select onChange={(e) => this.setState({selectedType: e.target.value})}>
+                    {
+                      types.map(
+                        selectedType => <option>{selectedType}</option>
+                      )
+                    }
+                  </select>
+                </div>
+              );
+          }
+      }
+
+      // Render the component to the DOM
+      ReactDOM.render(
+          <App />,
+          document.getElementById('root')
+      );
+    </script>
   </body>
 </html>
