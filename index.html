@@ -11,7 +11,7 @@
     <button type="button" id="signout_button" onclick="handleSignoutClick()">Sign Out</button> <br />
     API Key: <input type="text" id="api_key" value="" /> <br /> 
     Client ID: <input type="text" id="client_id" value="1062787699601-f9hqmcdf3s5fjbvd4fln1n1pq2o4ffrv.apps.googleusercontent.com" /> <br />
-    Sheet: <input type="text" id="sheet" value="School Districts" /> <br />
+    Sheet: <select type="text" id="sheet_name" value=""></select> <br />
     Range: <input type="text" id="range" value="A1:E" /> <br />
 
     <pre id="content" style="white-space: pre-wrap;"></pre>
@@ -72,7 +72,7 @@
         if (data[google.picker.Response.ACTION] == google.picker.Action.PICKED) {            
           let doc = data[google.picker.Response.DOCUMENTS][0];
           
-          listData(doc.id);
+          listSheets(doc.id);
         }
       }
 
@@ -125,6 +125,39 @@
         return document.getElementById('sheet').value + '!' +
           document.getElementById('range').value;
       }
+      
+      function removeOptions(selectElement) {
+        let i, L = selectElement.options.length - 1;
+        for(i = L; i >= 0; i--) {
+            selectElement.remove(i);
+        }
+      }
+
+      async function listSheets(sheetId) {
+        let response;
+        try {
+          response = await gapi.client.sheets.spreadsheets.get({
+            spreadsheetId: sheetId
+          });
+          
+          window.sheetResponse = response;
+
+          const sheetSelector = document.getElementById("sheet_name");
+          removeOptions(sheetSelector);
+
+          document.getElementById('sheet_name').options =
+            response.result.sheets.map(
+              (sheet) => {
+                sheetSelector.options[sheetSelector.options.length] = 
+                  new Option(sheet.properties.title, sheet.properties.title);
+              });
+        } catch (err) {
+          document.getElementById('content').innerText = err.message;
+          return;
+        }
+        
+        //document.getElementById('content').innerText = output;
+      }
 
       async function listData(sheetId) {
         let response;
@@ -133,6 +166,8 @@
             spreadsheetId: sheetId,
             range: getRange(),
           });
+          
+          window.listDataResponse = response;
         } catch (err) {
           document.getElementById('content').innerText = err.message;
           return;
