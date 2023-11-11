@@ -12,7 +12,7 @@
     API Key: <input type="text" id="api_key" value="" /> <br /> 
     Client ID: <input type="text" id="client_id" value="1062787699601-f9hqmcdf3s5fjbvd4fln1n1pq2o4ffrv.apps.googleusercontent.com" /> <br />
     Sheet: <select type="text" id="sheet_name" value="" onchange="selectSheet()"></select> <br />
-    Columns: <select type="text" id="sheet_column1" value=""></select> <br />
+    Columns: <select type="text" id="sheet_column1" value="" onchange="selectColumn()"></select> <br />
     Columns: <select type="text" id="sheet_column2" value=""></select> <br />
 
     <pre id="content" style="white-space: pre-wrap;"></pre>
@@ -159,7 +159,7 @@
           }
         }
 
-        function toSelect(name, data, cb) {
+        function toSelect(name, data, cbDisplay, cbValue) {
           const select = document.getElementById(name);
           removeOptions(select);
 
@@ -167,9 +167,9 @@
 
           select.options =
               data.map(
-                (record) => {
+                (record, i) => {
                   select.options[select.options.length] = 
-                    new Option(cb(record), cb(record));
+                    new Option(cbDisplay(record), cbValue(record, i));
                 });
         }
 
@@ -185,6 +185,7 @@
             toSelect(
               'sheet_name',
               response.result.sheets,
+              (sheet) => sheet.properties.title,
               (sheet) => sheet.properties.title
             );
 
@@ -197,6 +198,40 @@
           //document.getElementById('content').innerText = output;
         }
 
+        function indexToColumnHeader(index) {
+          let columnHeader = '';
+
+          while (index >= 0) {
+            // Get the remainder when divided by 26 (number of letters in the alphabet)
+            const remainder = index % 26;
+
+            // Convert the remainder to the corresponding letter
+            columnHeader = String.fromCharCode(65 + remainder) + columnHeader;
+
+            // Update the index to the result of integer division by 26
+            index = Math.floor(index / 26) - 1;
+
+            // Break the loop if index is less than 0
+            if (index < 0) {
+                break;
+            }
+          }
+
+          return columnHeader;
+        }
+
+        function columnHeaderToIndex(columnHeader) {
+          let index = 0;
+
+          // Loop through each character in reverse order
+          for (let i = columnHeader.length - 1, j = 0; i >= 0; i--, j++) {
+            const charCode = columnHeader.charCodeAt(i) - 65 + 1; // Convert character to ASCII code and adjust for 'A' starting at 65
+            index += charCode * Math.pow(26, j); // Multiply the ASCII code by 26^j and add to the index
+          }
+
+          return index - 1; // Adjust for 0-based index
+        }
+
         async function selectSheet(e) {
           let sheetName = document.getElementById('sheet_name').value;
          
@@ -206,19 +241,37 @@
 
           let cols = await listData(sheetId, sheetName + "!A1:ZZ1");
           console.log(cols);
+
+          let startColumn = columnHeaderToIndex(cols.range.split("!")[1][0]);
           
           toSelect(
               'sheet_column1',
               cols.values[0],
-              (name) => name
+              (name) => name,
+              (name, i) => indexToColumnHeader(i + startColumn)
             );
 
             
           toSelect(
               'sheet_column2',
               cols.values[0],
-              (name) => name
+              (name) => name,
+              (name, i) => i
             );
+        }
+
+        async function selectColumn(e) {
+          let sheetName = document.getElementById('sheet_name').value;
+         
+          if (!sheetName) {
+            return;
+          }
+
+          let columnValue = document.getElementById('sheet_column1').value;
+
+          let values = await listData(sheetId, sheetName + "!" + columnValue + ':' + columnValue);
+
+          document.getElementById('content').innerText = JSON.stringify(values, null, 2);
         }
 
         async function listData(sheetId, range) {
